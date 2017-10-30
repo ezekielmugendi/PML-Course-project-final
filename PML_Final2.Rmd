@@ -1,0 +1,96 @@
+---
+title: "PML final"
+author: "Ezekiel"
+date: "October 30, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction.
+This project uses the Weight Lifting dataset which contains data from accelerometers on the belt, forearm, arm and dumbell of 6 participants.  The dataset seeks to investigate/quantify "how well", an activity was performed by the wearer.  The classe variable contains data from the 6 participants as they performed the Unilateral Dumbbell Biceps Curl in five different fashions.
+
+This report shows the machine learning algorithim used to predict the manner in which the exercise was done, using the classe variable as the intended outcome and any other variables as predictors as i deem fit.
+
+## Building a prediction model
+
+### step 1: download data
+We are provided with two datasets, the training data and the test data.  Our model will be build based on the training dataset.
+```{r, }
+if(!file.exists("pml-training.csv")){download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile = "pml-training.csv")}
+
+if(!file.exists("pml-testing.csv")){download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile = "pml-testing.csv")}
+```
+### Data processing
+Having loaded the data into r, a quick glimpse into it shows lots of missing data(NAs). Majority of variables with NAs are discarded and a subset of the data is used to generate the best model fit.
+
+## Load the necessary packages that will be used
+```{r, }
+library(caret, warn.conflicts = TRUE, quietly = TRUE)
+## read data into r and replace missing values with NAs
+train_data <- read.csv("pml-training.csv", na.strings = c("", "NA"))
+test_data <- read.csv("pml-testing.csv", na.strings = c("", "NA"))
+dim(train_data); dim(test_data)
+```
+
+
+```{r, }
+## Remove columns with NAs
+train_data <- train_data[, (colSums(is.na(train_data))==0)]
+dim(train_data)
+test_data <- test_data[, (colSums(is.na(test_data))==0)]
+dim(test_data)
+```
+The data now has 60 variables.  Further processing reduces the variables to 52, which will be the ideal data set.
+ 
+```{r, }
+## Delete columns 1 to 8 because they are not relevant as predictors.
+train_data <- train_data[, -c(1:8)]
+dim(train_data)
+test_data <- test_data[, -c(1:8)]
+dim(test_data)
+```
+
+```{r, }
+## split the data into training and testing data
+inTrain <- createDataPartition(y=train_data$classe, p=0.7, list = FALSE)
+train <- train_data[inTrain,]
+test <- train_data[-inTrain,]
+dim(train); dim(test)
+```
+
+## Random Forest
+
+This model will use the random forest method. I chose random forest because it is one of the most used and accurate algorithms.The classe variables is our outcome with the remaining variables used as predictors. 
+### Cross Validation
+Estimate the accuracy of the randomForest algorithm on the training dataset using 10-fold cross-validation.
+
+```{r, }
+set.seed(123)
+# define training control 
+trainControl <- trainControl(method="cv", number=10)
+# estimate the accuracy of randomForest on the dataset
+modFit <- train(classe~., data = train, trControl=trainControl, method="rf")
+print(modFit)
+## apply the random forest model to the training data set
+predict.train <- predict(modFit, newdata=train)
+
+## test the model on the training data to assess it's performance and get the in-sample error.
+confusionMatrix(train$classe, predict.train )
+```
+### Estimating out of sample error accuracy
+We apply our model to the test data to estimate it's accuracy.
+```{r,}
+predict.test1 <- predict(modFit, newdata = test)
+confusionMatrix(test$classe, predict.test1)
+```
+
+The estimated accuracy of the data is 99.32%.
+
+```{r, }
+# predict outcome for test data set using the random forest model
+predict.test <- predict(modFit, newdata=test_data)
+predict.test
+```
